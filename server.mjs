@@ -4,6 +4,12 @@ import { pathToFileURL } from "node:url";
 import { classify } from "./mock-ai.mjs";
 
 const html = await readFile(new URL("./index.html", import.meta.url));
+const uiModule = await readFile(new URL("./ui.mjs", import.meta.url));
+
+const STATIC_FILES = new Map([
+  ["/", { body: html, type: "text/html; charset=utf-8" }],
+  ["/ui.mjs", { body: uiModule, type: "text/javascript; charset=utf-8" }],
+]);
 
 const ALLOWED_TOPICS = new Set(["delivery", "pricing", "other"]);
 const MODEL_TIMEOUT_MS = 300;
@@ -97,9 +103,10 @@ async function handleTriage(request, response) {
 
 export function createApp() {
   return createServer(async (request, response) => {
-    if (request.method === "GET" && request.url === "/") {
-      response.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      response.end(html);
+    if (request.method === "GET" && STATIC_FILES.has(request.url)) {
+      const file = STATIC_FILES.get(request.url);
+      response.writeHead(200, { "Content-Type": file.type });
+      response.end(file.body);
       return;
     }
     if (request.method !== "POST" || request.url !== "/api/triage") {

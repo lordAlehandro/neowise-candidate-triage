@@ -1,5 +1,6 @@
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { createApp } from "./server.mjs";
 import { manualViewModel, toViewModel } from "./ui.mjs";
@@ -27,6 +28,27 @@ async function triage(body) {
   });
   return { status: response.status, payload: await response.json() };
 }
+
+describe("Static assets", () => {
+  it("serves the page and the ES module it imports", async () => {
+    const page = await fetch(baseUrl + "/");
+    assert.equal(page.status, 200);
+    const pageText = await page.text();
+    assert.match(pageText, /import .* from "\.\/ui\.mjs"/);
+
+    const module = await fetch(baseUrl + "/ui.mjs");
+    assert.equal(module.status, 200);
+    assert.match(module.headers.get("content-type"), /javascript/);
+    assert.match(await module.text(), /export function toViewModel/);
+  });
+
+  it("has a style rule for every view kind", async () => {
+    const css = await readFile(new URL("./index.html", import.meta.url), "utf8");
+    for (const kind of ["ready", "manual_review", "loading"]) {
+      assert.match(css, new RegExp(`\\.status-${kind}\\b`), `missing style for ${kind}`);
+    }
+  });
+});
 
 describe("POST /api/triage — Validation", () => {
   const badBodies = [
